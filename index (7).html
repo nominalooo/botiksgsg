@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crypto TG Scanner — парсер обменников</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d;
+    --text: #e6edf3; --muted: #8b949e; --accent: #f7931a;
+    --green: #3fb950; --red: #f85149; --yellow: #d29922;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 20px;
+  }
+  .container { max-width: 1400px; margin: 0 auto; }
+  h1 { font-size: 24px; margin-bottom: 4px; }
+  h1 .btc { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 16px; margin-bottom: 12px; color: var(--accent); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  input, select, button {
+    background: #0d1117; color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 12px; font-size: 14px;
+  }
+  button { cursor: pointer; transition: all .15s; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #0d1117; font-weight: 600; border: none; }
+  button.primary:hover { filter: brightness(1.1); }
+  button.green { background: var(--green); color: #0d1117; font-weight: 600; border: none; }
+  button.green:hover { filter: brightness(1.1); }
+  button.danger { color: var(--red); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .stats { display: flex; gap: 24px; margin-bottom: 8px; flex-wrap: wrap; }
+  .stat b { font-size: 22px; display: block; }
+  .stat span { color: var(--muted); font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge.ok { background: rgba(63,185,80,.15); color: var(--green); }
+  .badge.manual { background: rgba(242,151,26,.2); color: var(--accent); }
+  .badge.error { background: rgba(248,81,73,.15); color: var(--red); }
+  .badge.muted { background: rgba(139,148,158,.15); color: var(--muted); }
+  .badge.pdf { background: rgba(88,166,255,.15); color: #58a6ff; }
+  .badge.inf { background: rgba(63,185,80,.2); color: var(--green); }
+  .log { background: #0d1117; border: 1px solid var(--border); border-radius: 6px;
+         padding: 10px; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; }
+  .log div { padding: 2px 0; border-bottom: 1px solid #21262d; }
+  .log .ok { color: var(--green); } .log .err { color: var(--red); }
+  .progress { height: 6px; background: #21262d; border-radius: 3px; overflow: hidden; margin: 10px 0; }
+  .progress .bar { height: 100%; background: var(--accent); width: 0%; transition: width .3s; }
+  .detail { display: none; background: #0d1117; border: 1px solid var(--border);
+            border-radius: 6px; padding: 10px; margin-top: 8px; font-size: 12px; max-height: 300px; overflow-y: auto; }
+  .methods { display: flex; gap: 4px; flex-wrap: wrap; }
+  .methods span { background: #21262d; padding: 1px 6px; border-radius: 4px; font-size: 11px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+  .tabs button { border-radius: 6px 6px 0 0; }
+  .tabs button.active { background: var(--accent); color: #0d1117; border-color: var(--accent); font-weight: 600; }
+  a { color: #58a6ff; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .empty { color: var(--muted); text-align: center; padding: 30px; }
+  .warn { background: rgba(210,153,34,.12); border: 1px solid rgba(210,153,34,.4); color: var(--yellow);
+          padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Crypto <span class="btc">₿</span> TG Scanner</h1>
+  <div class="sub">Бесконечный парсер Telegram-ботов криптообменников · ищет ручную оплату (СБП / карта / PDF-чек)</div>
+
+  <div id="warnBox" class="warn" style="display:none"></div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>⚙️ Управление</h2>
+      <div class="stats">
+        <div class="stat"><b id="stTotal">0</b><span>ботов в базе</span></div>
+        <div class="stat"><b id="stManual">0</b><span>с ручной оплатой</span></div>
+        <div class="stat"><b id="stPdf">0</b><span>с PDF-чеком</span></div>
+        <div class="stat"><b id="stScanned">0</b><span>просканировано</span></div>
+        <div class="stat"><b id="stCycles">0</b><span>циклов</span></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <input id="amount" type="text" value="5000" placeholder="Сумма пополнения, ₽" style="width:140px">
+        <input id="delay" type="text" value="120" placeholder="Пауза, сек" style="width:100px" title="Пауза между циклами в бесконечном режиме">
+        <button id="btnDiscover" class="primary">🔍 Найти новых ботов</button>
+        <button id="btnScan">▶ Сканировать все</button>
+        <button id="btnInfinite" class="green">♾ Бесконечный режим</button>
+        <button id="btnStop" class="danger">⏹ Стоп</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <span style="font-size:12px;color:var(--muted)">Бесконечный режим: discover → скан всех → пауза → discover...</span>
+        <a href="/api/export" style="margin-left:auto;font-size:13px">⬇ Экспорт JSON</a>
+      </div>
+      <div class="progress"><div class="bar" id="progBar"></div></div>
+      <div id="scanInfo" style="color:var(--muted);font-size:13px"></div>
+      <div class="log" id="logBox" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <h2>➕ Добавить бота</h2>
+      <div class="row">
+        <input id="newBot" type="text" placeholder="@username_bot" style="flex:1">
+        <button id="btnAddBot">Добавить</button>
+      </div>
+      <div style="margin-top:14px;font-size:13px;color:var(--muted)">
+        💡 Парсер сам гоняет сценарий: <b>/start → /buy → сумма → BTC-адрес</b>, собирает кнопки и текст,
+        ищет в интерфейсе <b>ручной способ</b> (СБП / перевод на карту / реквизиты / приложить чек PDF).
+        <br><br>
+        🔎 <b>Поиск ботов:</b> каталоги + статьи + поисковики + Exa (нейросетевой поиск по смыслу).
+        Прокси для Telegram задаётся в <code>.env</code> → <code>TG_PROXY</code>.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <button id="tabResults" class="active">📋 Результаты скана</button>
+      <button id="tabBots">🤖 База ботов</button>
+    </div>
+    <div id="viewResults">
+      <table>
+        <thead><tr>
+          <th>Бот</th><th>Статус</th><th>Ручная оплата</th><th>PDF-чек</th><th>Способы</th><th>Детали</th>
+        </tr></thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+      <div id="resultsEmpty" class="empty">Пока нет результатов. Нажми «Сканировать все».</div>
+    </div>
+    <div id="viewBots" style="display:none">
+      <table>
+        <thead><tr><th>Username</th><th>Статус</th><th>Сканов</th><th>Добавлен</th><th></th></tr></thead>
+        <tbody id="botsBody"></tbody>
+      </table>
+      <div id="botsEmpty" class="empty">База пуста. Нажми «Найти новых ботов».</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let state = { bots: [], results: {} };
+
+const $ = id => document.getElementById(id);
+
+function fmtTime(ts) {
+  if (!ts) return "—";
+  return new Date(ts * 1000).toLocaleString("ru-RU");
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+function badge(status) {
+  const map = {
+    ok: ['ok','OK'], 'no_buy_flow': ['muted','нет flow'],
+    error: ['error','ошибка'], blocked: ['error','заблокирован'],
+    new: ['muted','новый'], pending: ['muted','...'],
+  };
+  const [cls, txt] = map[status] || ['muted', status];
+  return `<span class="badge ${cls}">${esc(txt)}</span>`;
+}
+
+function renderResults() {
+  const rows = Object.values(state.results).sort((a,b) => (b.has_manual_payment - a.has_manual_payment) || (b.scanned_at - a.scanned_at));
+  const body = $('resultsBody');
+  $('resultsEmpty').style.display = rows.length ? 'none' : '';
+  body.innerHTML = rows.map(r => `
+    <tr>
+      <td><a href="https://t.me/${esc(r.username)}" target="_blank">@${esc(r.username)}</a></td>
+      <td>${badge(r.status)}</td>
+      <td>${r.has_manual_payment ? '<span class="badge manual">✅ ручная</span>' : '<span class="badge muted">—</span>'}</td>
+      <td>${r.has_pdf_check ? '<span class="badge pdf">📎 PDF/чек</span>' : '<span class="badge muted">—</span>'}</td>
+      <td><div class="methods">${(r.payment_methods||[]).map(m=>`<span>${esc(m)}</span>`).join('')}</div></td>
+      <td><button onclick="toggleDetail('${esc(r.username)}')">▸</button></td>
+    </tr>
+    <tr id="detail-${esc(r.username)}" class="detail"><td colspan="6">
+      <b>@${esc(r.username)}</b> — ${esc(r.title||'')}<br>
+      ${(r.flow_log||[]).map(x => `<b>[${esc(x.step)}]</b> ${esc(x.text)}<br>`).join('')}
+      ${r.error ? `<span style="color:var(--red)">ERR: ${esc(r.error)}</span>` : ''}
+    </td></tr>
+  `).join('');
+  $('stManual').textContent = rows.filter(r=>r.has_manual_payment).length;
+  $('stPdf').textContent = rows.filter(r=>r.has_pdf_check).length;
+  $('stScanned').textContent = rows.filter(r=>r.status==='ok'||r.status==='no_buy_flow'||r.status==='error').length;
+}
+
+function toggleDetail(u) {
+  const el = $('detail-' + u);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+function renderBots() {
+  const body = $('botsBody');
+  $('botsEmpty').style.display = state.bots.length ? 'none' : '';
+  body.innerHTML = state.bots.map(b => `
+    <tr>
+      <td><a href="https://t.me/${esc(b.username)}" target="_blank">@${esc(b.username)}</a></td>
+      <td>${badge(b.status)}</td>
+      <td>${b.scans||0}</td>
+      <td>${fmtTime(b.added_at)}</td>
+      <td><button class="danger" onclick="removeBot('${esc(b.username)}')">✕</button></td>
+    </tr>
+  `).join('');
+  $('stTotal').textContent = state.bots.length;
+}
+
+async function refresh() {
+  const r = await fetch('/api/status').then(x => x.json());
+  state.bots = r.bots;
+  state.results = r.results;
+  renderBots();
+  renderResults();
+
+  const s = r.state;
+  $('progBar').style.width = s.total ? (s.progress / s.total * 100) + '%' : '0%';
+  $('scanInfo').textContent = s.running
+    ? (s.infinite
+        ? `♾ Бесконечный режим: цикл ${s.cycles}, ${s.progress}/${s.total} — @${s.current}`
+        : `Скан: ${s.progress}/${s.total} — @${s.current}`)
+    : (s.total ? `Последний скан: ${s.total} ботов, завершён` : '');
+  $('stCycles').textContent = s.cycles || 0;
+
+  const logBox = $('logBox');
+  logBox.innerHTML = s.log.map(l => `<div>${fmtTime(l.ts)} ${esc(l.msg)}</div>`).join('');
+  logBox.scrollTop = logBox.scrollHeight;
+
+  $('btnScan').disabled = s.running;
+  $('btnStop').disabled = !s.running;
+  $('btnDiscover').disabled = s.running;
+  $('btnInfinite').disabled = s.running;
+
+  const warn = $('warnBox');
+  if (!r.api_configured) {
+    warn.style.display = '';
+    warn.innerHTML = '⚠️ <b>TG_API_ID / TG_API_HASH не настроены.</b> Создай <code>.env</code> в папке crypto_scanner (см. README) — без этого скан ботов не заработает. Поиск ботов в вебе работает и без них.';
+  } else {
+    warn.style.display = 'none';
+  }
+}
+
+$('btnScan').onclick = async () => {
+  const amount = $('amount').value || '5000';
+  await fetch('/api/scan', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({amount}) });
+  refresh();
+};
+
+$('btnInfinite').onclick = async () => {
+  const amount = $('amount').value || '5000';
+  const delay = parseInt($('delay').value) || 120;
+  await fetch('/api/scan_infinite', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({amount, delay}) });
+  refresh();
+};
+
+$('btnStop').onclick = async () => { await fetch('/api/stop', {method:'POST'}); refresh(); };
+
+$('btnDiscover').onclick = async () => {
+  $('btnDiscover').disabled = true;
+  $('btnDiscover').textContent = '⏳ Ищу...';
+  try {
+    const res = await fetch('/api/discover', {method:'POST'}).then(x=>x.json());
+    alert(`Найдено: ${res.found.length}\nДобавлено новых в базу: ${res.added}\nВсего в базе: ${res.total_in_db}`);
+  } catch(e) {
+    alert('Ошибка поиска: ' + e);
+  }
+  $('btnDiscover').disabled = false;
+  $('btnDiscover').textContent = '🔍 Найти новых ботов';
+  refresh();
+};
+
+$('btnAddBot').onclick = async () => {
+  const u = $('newBot').value.trim();
+  if (!u) return;
+  await fetch('/api/bots/add', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username:u})});
+  $('newBot').value = '';
+  refresh();
+};
+
+async function removeBot(u) {
+  await fetch('/api/bots/remove', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username:u})});
+  refresh();
+}
+
+$('tabResults').onclick = () => {
+  $('tabResults').classList.add('active'); $('tabBots').classList.remove('active');
+  $('viewResults').style.display = ''; $('viewBots').style.display = 'none';
+};
+$('tabBots').onclick = () => {
+  $('tabBots').classList.add('active'); $('tabResults').classList.remove('active');
+  $('viewBots').style.display = ''; $('viewResults').style.display = 'none';
+};
+
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body></html>
