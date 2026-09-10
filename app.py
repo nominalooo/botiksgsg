@@ -4,6 +4,7 @@ FastAPI + статический фронт. Запуск: uvicorn main:app --po
 """
 import asyncio
 import json
+import logging
 import os
 import time
 from pathlib import Path
@@ -16,8 +17,14 @@ from pydantic import BaseModel
 
 from core import discovery, scanner
 
+logger = logging.getLogger("app")
+
 BASE_DIR = Path(__file__).resolve().parent
-load_dotenv(BASE_DIR / ".env")
+
+try:
+    load_dotenv(BASE_DIR / ".env")
+except Exception as e:
+    logger.warning("Failed to load .env file: %s", e)
 
 app = FastAPI(title="Crypto TG Scanner", version="2.0")
 
@@ -57,7 +64,13 @@ def _proxy():
 # ---------------------------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
 async def index():
-    return (BASE_DIR / "static" / "index.html").read_text(encoding="utf-8")
+    index_path = BASE_DIR / "static" / "index.html"
+    if not index_path.exists():
+        return HTMLResponse(
+            content="<h1>Crypto TG Scanner</h1><p>Static UI not found.</p>",
+            status_code=200,
+        )
+    return index_path.read_text(encoding="utf-8")
 
 
 @app.get("/api/status")
@@ -296,4 +309,15 @@ async def api_export():
 
 
 # статика
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+try:
+    static_dir = BASE_DIR / "static"
+    if not static_dir.exists():
+        logger.warning("Static directory %s does not exist, creating it", static_dir)
+        static_dir.mkdir(parents=True, exist_ok=True)
+
+    if static_dir.is_dir():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+    else:
+        logger.warning("Static path %s is not a directory, skipping mount", static_dir)
+except Exception as e:
+    logger.warning("Failed to mount static files: %s", e)
