@@ -2,6 +2,7 @@
 # БЕЗ ЭТОГО скан ботов не работает. Поиск ботов в вебе — работает.
 TG_API_ID=6579671
 TG_API_HASH=e457623d1de29cac45c15855d3800c68
+EXA_API_KEY=5db81a7e-e508-476c-b0b1-0b67e3e256bc
 
 # Прокси для Telegram (опционально). Формат: http://user:pass@host:port или socks5://host:port
 TG_PROXY=
