@@ -1,0 +1,10 @@
+# Telegram API credentials (https://my.telegram.org -> API development tools)
+# БЕЗ ЭТОГО скан ботов не работает. Поиск ботов в вебе — работает.
+TG_API_ID=
+TG_API_HASH=
+
+# Прокси для Telegram (опционально). Формат: http://user:pass@host:port или socks5://host:port
+TG_PROXY=
+
+# Стартовый список ботов (через запятую) — можно оставить пустым, база наполнится через "Найти новых ботов"
+BOTS=
