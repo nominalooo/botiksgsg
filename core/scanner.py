@@ -24,7 +24,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 API_ID = 0          # заполняется из .env
 API_HASH = ""       # заполняется из .env
-SESSION_DIR = Path(__file__).resolve().parent.parent / "sessions"
+SESSION_DIR = Path(__file__).resolve().parent.parent.parent / "sessions"
 SESSION_DIR.mkdir(exist_ok=True)
 
 BTC_ADDR = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"  # тестовый адрес

@@ -11,7 +11,7 @@ from urllib.parse import quote_plus
 
 import requests
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = BASE_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
 BOTS_FILE = DATA_DIR / "bots.json"
